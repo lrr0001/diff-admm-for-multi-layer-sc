@@ -159,7 +159,7 @@ class multilayerADMMsparseCodingTightFrame(Layer):
     self.rho = rho
     if isinstance(lambduh, list):
       self.lambduh = lambduh
-    else
+    else:
       self.lambduh = [0]*len(poolSz) + lambduh
     #endif
     assert(len(noc) == len(kerSz))
@@ -236,7 +236,7 @@ class multilayerADMMsparseCodingTightFrame(Layer):
         dammu = d(alpha[ii],ii) - mu[ii]
         z[ii - 1],poolz = Unpool_LS(poolSz[ii - 1])(amg,dammu)
         # poolz = max_pool(z[ii - 1],ii - 1) # I modified Unpool_LS to output this so that it's not computed twice
-        if self.lambduh[ii - 1] != 0
+        if self.lambduh[ii - 1] != 0:
           z[ii - 1] = shrinkage_layer(self.lambduh[ii - 1]/self.rho)(z[ii - 1])
           poolz = shrinkage_layer(self.lambduh[ii - 1]/self.rho)(poolz)
         #endif
