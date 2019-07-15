@@ -170,8 +170,8 @@ class multilayerADMMsparseCodingTightFrame(Layer):
   def build(self, input_shape):
     paddingSz = []
     outputSz = []
-    second_ind = lambda value,ind: [x[ii][ind] for ii in range(len(x))
-    floor_ceil = lambda value: [int(np.floor(x)),int(np.ceil(x))]
+    second_ind = lambda value,ind: [x[ii][ind] for ii in range(len(x))]
+    floor_ceil = lambda value : [int(np.floor(value)),int(np.ceil(value))]
 
     # Compute padding size and size of output
     for jj in range(2):
