@@ -25,8 +25,6 @@ def get_padding_size(inputSz,kerSz,poolSz,nol):
       paddingSz = paddingSz + (poolSz[ii - 1] - currRem)*np.prod(poolSz[0:ii - 1])
     #endif
     currSz = int(currSz/poolSz[ii - 1]) - kerSz[ii] + 1
-    print(int(currSz))
-    print(int(currSz/poolSz[ii - 1]))
     if currSz < 1:
       paddingSz = paddingSz + (1 - currSz)*np.prod(poolSz[0:ii])
       currSz = 1
@@ -176,7 +174,6 @@ class multilayerADMMsparseCodingTightFrame(Layer):
 
   def build(self, input_shape):
     inputShape = input_shape.as_list()
-    print(inputShape)
     paddingSz = []
     outputSz = []
     second_ind = lambda value,ind: [value[ii][ind] for ii in range(len(value))]
@@ -237,7 +234,7 @@ class multilayerADMMsparseCodingTightFrame(Layer):
     alpha.append(1./2.*dh(y,0))
     alphaShape = tf.shape(alpha)
     z.append(alpha[0])
-    gamma.append(alpha[0] - z[0])
+    gamma.append(z[0] - alpha[0])
     mu.append(y - d(alpha[0],0))
 
     for ii in range(1,self.nol):
@@ -268,7 +265,7 @@ class multilayerADMMsparseCodingTightFrame(Layer):
           poolz = shrinkage_layer(self.lambduh[ii - 1]/self.rho)(poolz)
         #endif
 
-        gamma[ii - 1] = gamma[ii - 1] + alpha[ii - 1] - z[ii - 1]        
+        gamma[ii - 1] = gamma[ii - 1] + z[ii - 1] - alpha[ii - 1]        
         
         dhpoolzpmu = 1./2.*dh(poolz + mu[ii],ii)
         zpg = z[ii] + gamma[ii]
@@ -278,7 +275,7 @@ class multilayerADMMsparseCodingTightFrame(Layer):
         mu[ii] = mu[ii] + poolz - d(alpha[ii],ii)
       #endfor
       z[self.nol - 1] = shrinkage_layer(self.lambduh[self.nol - 1]/self.rho)(alpha[self.nol - 1] - gamma[self.nol - 1])
-      gamma[self.nol - 1] = gamma[self.nol - 1] + alpha[self.nol - 1] - z[self.nol - 1]
+      gamma[self.nol - 1] = gamma[self.nol - 1] + z[self.nol - 1]  - alpha[self.nol - 1]
     #endfor
     return z[self.nol - 1]
 
