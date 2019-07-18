@@ -215,9 +215,9 @@ class multilayerADMMsparseCodingTightFrame(Layer):
     paddedx = tf.pad(x,self.paddingSz,mode='CONSTANT')
     y = paddedx
     batchSize = tf.shape(x)[0]
-    inputDimensions = x.get_shape().as_list()[1:4]
-    binaryTensorShape = tf.TensorShape([1,*inputDimensions])
-    binaryTensor = tf.pad(tf.constant(value=True,shape=binaryTensorShape),self.paddingSz,mode='CONSTANT',constant_values=False)
+    inputDimensions = x.get_shape()[1:4]
+    binaryTensorShape = (batchSize,inputDimensions[0],inputDimensions[1],inputDimensions[2])
+    binaryTensor = tf.pad(tf.fill(dims=binaryTensorShape,value=True),self.paddingSz,mode='CONSTANT',constant_values=False)
     #paddedxShape = tf.shape(paddedx) 
     #outshape = []
     # outshape.append(tf.pack([batch_size,paddedxShape[1],paddedxShape[2],paddedxShape[3]]))
