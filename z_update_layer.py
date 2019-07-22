@@ -4,6 +4,16 @@ from tensorflow import math
 import numpy as np
 import tensorflow.keras.constraints
 
+def floor_ceil(value):
+  return [int(np.floor(value)),int(np.ceil(value))]
+
+def cropped_l2_loss(x,xRecon):
+  inputShape = x.get_shape().as_list()
+  reconShape = xRecon.get_shape().as_list()
+  cropShape = (floor_ceil(np.float32(reconShape[1] - inputShape[1])/2.0),floor_ceil(np.float32(reconShape[2] - inputShape[2])/2.0))
+  croppedRecon = tf.keras.layers.Cropping2D(cropping=cropShape)(xRecon)
+  return tensorflow.nn.l2_loss(croppedRecon)
+
 def get_effective_filter_size(kerSz,poolSz,nol):
   filterSz = 1
   for ii in range(nol-1,0,-1):
@@ -177,7 +187,7 @@ class multilayerADMMsparseCodingTightFrame(Layer):
     paddingSz = []
     outputSz = []
     second_ind = lambda value,ind: [value[ii][ind] for ii in range(len(value))]
-    floor_ceil = lambda value : [int(np.floor(value)),int(np.ceil(value))]
+    #floor_ceil = lambda value : [int(np.floor(value)),int(np.ceil(value))]
 
     # Compute padding size and size of output
     for jj in range(2):
@@ -277,8 +287,8 @@ class multilayerADMMsparseCodingTightFrame(Layer):
       z[self.nol - 1] = shrinkage_layer(self.lambduh[self.nol - 1]/self.rho)(alpha[self.nol - 1] - gamma[self.nol - 1])
       gamma[self.nol - 1] = gamma[self.nol - 1] + z[self.nol - 1]  - alpha[self.nol - 1]
     #endfor
-    return z[self.nol - 1]
+    return z[self.nol - 1],y
 
 
   def compute_output_shape(self, input_shape):
-    return [input_shape[0],self.outputSz[0],self.outputSz[1],self.noc[-1]]
+    return ([input_shape[0],self.outputSz[0],self.outputSz[1],self.noc[-1]],input_shape)
