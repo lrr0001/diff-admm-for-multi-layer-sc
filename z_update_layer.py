@@ -227,9 +227,10 @@ class multilayerADMMsparseCodingTightFrame(Layer):
       weightNames = "ADMM_convolutional_weights" + str(ii)
       weightShape = tf.constant(value=[self.kerSz[ii][0],self.kerSz[ii][1],nof,self.noc[ii]])
       self.weights.append(self.add_weight(name=weightNames,
-        shape=weightShape,
-        initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.05),
-        constraint=tf.keras.constraints.UnitNorm(axis=2)))
+        shape=[self.kerSz[ii][0],self.kerSz[ii][1],nof,self.noc[ii]],#weightShape,
+        initializer=tf.keras.initializers.RandomNormal(mean=0.0,stddev=np.sqrt(2./(self.kerSz[ii][0]*self.kerSz[ii][1]*self.noc[ii])))))
+        #initializer=tf.keras.initializers.Orthogonal(gain=1.0),
+        #constraint=tf.keras.constraints.UnitNorm(axis=2)))
       nof = self.noc[ii]
     self.nof = inputShape[3]
     super(multilayerADMMsparseCodingTightFrame, self).build(input_shape)
