@@ -45,6 +45,7 @@ def get_padding_size(inputSz,kerSz,poolSz,nol):
 class shrinkage_layer(Layer):
 
   def __init__(self,lambduh,**kwargs):
+    #lambduh must be scalar
     self.lambduh = lambduh
     super(shrinkage_layer, self).__init__(**kwargs)
 
@@ -59,6 +60,24 @@ class shrinkage_layer(Layer):
 
   def compute_output_shape(self, input_shape):
     return input_shape
+
+class adaptive_shrinkage_layer(Layer):
+  def __init(self,lambduh,**kwargs):
+    self.lambduh = lambduh
+    super(adaptive_shrinkage_layer, self).__init__(**kwargs)
+
+  def build(self, input_shape):
+    super(shrinkage_layer, self).build(input_shape)
+
+  def call(self, x):
+    lambduh = self.lambduh*x[1]
+    y = x[0] - lambduh*tf.math.sign(x[0])
+    batchSize = tf.shape(x[0])[0]
+    inputShape = x[0].get_shape().as_list()[1:]
+    return tf.where(tf.math.logical_or(x <= -lambduh, x >= lambduh),y,tf.fill(dims=[batchSize,*inputShape],value=0.))
+
+  def compute_output_shape(self, input_shape):
+    return input_shape[0]
 
 
 
@@ -137,18 +156,22 @@ class Unpool_LS(Layer):
     desiredShape = vectorizedBlocks.get_shape().as_list()[1:4]
     batchSize = tf.shape(vectorizedBlocks)[0]
     vectorizedOutput = tf.where(binaryTensor,tf.broadcast_to(replacementVals,[batchSize,*desiredShape]),vectorizedBlocks)
+    vectorizedOutput3 = tf.where(binaryTensor,tf.broadcast_to(tf.dtypes.cast((argMax + 1)/(argMax + 2),tf.float32),[batchSize,*desiredShape]),tf.fill(dims=[batchSize,*desiredShape],value=np.float32(1.)))
 
     # undo vectorization of blocks
     outputBlocks = tf.reshape(vectorizedOutput,[batchSize,*blockShape[1:4]])
+    outputBlocks3 = tf.reshape(vectorizedOutput3,[batchSize,*blockShape[1:4]])
     outputRows = concat_splits(value=outputBlocks,numOfSplits=pooledShape[2],splitDim=3,concatDim=2)
     outputRows2 = concat_splits(value=replacementVals,numOfSplits=pooledShape[2],splitDim=3,concatDim=2)
+    outputRows3 = concat_splits(value=outputBlocks3,numOfSplits=pooledShape[2],splitDim=3,concatDim=2)
     output = concat_splits(value=outputRows,numOfSplits=pooledShape[1],splitDim=3,concatDim=1)
     output2 = concat_splits(value=outputRows2,numOfSplits=pooledShape[1],splitDim=3,concatDim=1)
-    return (output,output2)
+    output3 = concat_splits(value=outputRows3,numOfSplits=pooledShape[1],splitDim=3,concatDim=1)
+    return (output,output2,output3)
     
     
   def compute_output_shape(self, input_shape):
-    return input_shape[0]
+    return (input_shape[0],input_shape[1],input_shape[0])
 
 #endclass
 
@@ -242,7 +265,6 @@ class multilayerADMMsparseCodingTightFrame(Layer):
     gamma = []
     mu = []
     alpha.append(1./2.*dh(y,0))
-    alphaShape = tf.shape(alpha)
     z.append(alpha[0])
     gamma.append(z[0] - alpha[0])
     mu.append(y - d(alpha[0],0))
@@ -268,11 +290,11 @@ class multilayerADMMsparseCodingTightFrame(Layer):
       for ii in range(1,self.nol):
         amg = alpha[ii - 1] - gamma[ii - 1]
         dammu = d(alpha[ii],ii) - mu[ii]
-        z[ii - 1],poolz = Unpool_LS(self.poolSz[ii - 1])([amg,dammu])
+        z[ii - 1],poolz,shrinkageFactor = Unpool_LS(self.poolSz[ii - 1])([amg,dammu])
         
         if self.lambduh[ii - 1] != 0:
-          z[ii - 1] = shrinkage_layer(self.lambduh[ii - 1]/self.rho)(z[ii - 1])
-          poolz = shrinkage_layer(self.lambduh[ii - 1]/self.rho)(poolz)
+          z[ii - 1] = adaptive_shrinkage_layer(self.lambduh[ii - 1]/self.rho)([z[ii - 1],shrinkageFactor])
+          poolz = max_pool(z[ii - 1],ii - 1)
         #endif
 
         gamma[ii - 1] = gamma[ii - 1] + z[ii - 1] - alpha[ii - 1]        
