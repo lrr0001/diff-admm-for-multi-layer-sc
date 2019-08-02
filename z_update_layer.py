@@ -53,11 +53,11 @@ def get_padding_size(inputSz,kerSz,poolSz,nol):
 def concat_splits(value,numOfSplits,splitDim,concatDim):
   return tf.concat(tf.split(value,numOfSplits,splitDim),concatDim)
 
-def get_gathered_blocks(x,numOfBlocks)
-  gatheredRows = concat_splits(value=x,numOfBlocks[0],splitDim=1,concatDim=3)
-  return concat_splits(value=gatheredRows,numOfBlocks[1],splitDim=2,concatDim=3)
+def get_gathered_blocks(x,numOfBlocks):
+  gatheredRows = concat_splits(value=x,numOfSplits=numOfBlocks[0],splitDim=1,concatDim=3)
+  return concat_splits(value=gatheredRows,numOfSplits=numOfBlocks[1],splitDim=2,concatDim=3)
 
-def ungather_blocks(x,numOfBlocks,blockShape)
+def ungather_blocks(x,numOfBlocks):
     outputRows = concat_splits(value=x,numOfSplits=numOfBlocks[1],splitDim=3,concatDim=2)
     return concat_splits(value=outputRows,numOfSplits=numOfBlocks[0],splitDim=3,concatDim=1)
 
@@ -257,7 +257,8 @@ class multilayerADMMsparseCodingTightFrame(Layer):
       weightShape = tf.constant(value=[self.kerSz[ii][0],self.kerSz[ii][1],nof,self.noc[ii]])
       self.weights.append(self.add_weight(name=weightNames,
         shape=[self.kerSz[ii][0],self.kerSz[ii][1],nof,self.noc[ii]],#weightShape,
-        initializer=tf.keras.initializers.RandomNormal(mean=0.0,stddev=np.sqrt(np.sqrt(1./(nof*self.kerSz[ii][0]**2*self.kerSz[ii][1]**2*self.noc[ii])))),
+        initializer=tf.keras.initializers.RandomNormal(mean=0.0,stddev=np.sqrt(np.sqrt(1./(nof*self.kerSz[ii][0]**2*self.kerSz[ii][1]**2*self.noc[ii]))))
+        #initializer= tf.keras.initializers.RandomNormal(mean=0.0,stddev=np.sqrt(2/(self.kerSz[ii][0]*self.kerSz[ii][1]*self.noc[ii])))
         #initializer=tf.keras.initializers.Orthogonal(gain=1.0),
         #constraint=tf.keras.constraints.UnitNorm(axis=3)
         #constraint=tf.keras.constraints.MaxNorm(max_value=1.,axis=3)
@@ -296,14 +297,14 @@ class multilayerADMMsparseCodingTightFrame(Layer):
     z = []
     gamma = []
     mu = []
-    alpha.append(dh(y,0))
+    alpha.append(1/2.*dh(y,0))
     z.append(alpha[0])
     gamma.append(z[0] - alpha[0])
     mu.append(y - d(alpha[0],0))
 
     for ii in range(1,self.nol):
       poolz = max_pool(z[ii - 1],ii - 1)
-      alpha.append(dh(poolz,ii))
+      alpha.append(1/2.*dh(poolz,ii))
       z.append(alpha[ii])
       gamma.append(alpha[ii] - z[ii])
       mu.append(poolz - d(alpha[ii],ii))
