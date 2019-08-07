@@ -48,7 +48,7 @@ def get_padding_size(inputSz,kerSz,poolSz,nol):
       currSz = 1
     #endif
   #endfor
-  return (paddingSz,currSz,effFilterSz)
+  return (paddingSz,currSz)
 
 def concat_splits(value,numOfSplits,splitDim,concatDim):
   return tf.concat(tf.split(value,numOfSplits,splitDim),concatDim)
@@ -224,8 +224,9 @@ class Stochastic_Unpool(Layer):
     inds = tf.random.uniform((1,1,1,prodSize),0,blockSize,tf.int32)
     blockIndsTensorConst = tf.reshape(tf.range(0,blockSize),[1,blockSize,1,1])
     binaryTensor = tf.math.equal(inds,blockIndsTensorConst)
-    vectorizedOutput = tf.where(binaryTensor,tf.broadcast_to(gatheredBlocks,[1,blockSize,1,prodSize]),tf.zeros([1,blockSize,1,prodSize])
-    return ungather_blocks(vectorizedOutput,(inputShape[1],inputShape[2]))
+    vectorizedOutput = tf.where(binaryTensor,tf.broadcast_to(gatheredBlocks,[1,blockSize,1,prodSize]),tf.zeros([1,blockSize,1,prodSize]))
+    blockedOutput = tf.reshape(vectorizedOutput,[1,self.poolSz[0],self.poolSz[1],-1])
+    return ungather_blocks(blockedOutput,(inputShape[1],inputShape[2]))
     
     
   def compute_output_shape(self, input_shape):
@@ -235,6 +236,42 @@ class Stochastic_Unpool(Layer):
 
 
 
+
+class visualizeMultilayerADMM(Layer):
+
+  def __init__(self,weights,poolSz,**kwargs):
+    # poolSz = list of pooling sizes for each layer
+    self.poolSz = poolSz
+    self.filters = weights
+    self.nol = len(weights)
+    assert(self.nol == len(poolSz) + 1)
+    
+    super(visualizeMultilayerADMM, self).__init__(*kwargs)
+
+  def build(self, input_shape):
+    super(visualizeMultilayerADMM, self).build(input_shape)
+
+  def call(self, x):
+    batchSize = tf.shape(x)[0]
+    outshape = lambda x, w: tf.stack([batchSize, x.get_shape().as_list()[1] + w.shape[0] - 1, x.get_shape().as_list()[2] + w.shape[1] - 1,w.shape[2]])
+    d = lambda input, ind: tf.nn.conv2d_transpose(value=input,filter=self.filters[ind],output_shape=outshape(input,self.filters[ind]),strides=[1,1,1,1],padding="VALID")
+    temp = d(x,self.nol - 1)
+    for ii in range(self.nol - 2,-1,-1):
+      temp = Stochastic_Unpool(self.poolSz[ii])(temp)
+      temp = d(temp,ii)
+    return temp
+
+
+  def compute_output_shape(self, input_shape):
+    inputShape = input_shape.as_list()
+    currShape = [1,1]
+    for jj in [0,1]:
+      currShape[jj] = currShape[jj] + self.filters[self.nol - 1].shape[jj] - 1
+
+      for ii in range(self.nol - 2,-1,-1):
+        currShape[jj] = currShape[jj]*self.poolSz[ii][jj]
+        currShape[jj] = currShape[jj] + self.filters[ii].shape[jj] - 1
+    return (inputShape[0],currShape[0],currShape[1],self.filters[0][2])
 
 class multilayerADMMsparseCodingTightFrame(Layer):
 
@@ -262,7 +299,7 @@ class multilayerADMMsparseCodingTightFrame(Layer):
     super(multilayerADMMsparseCodingTightFrame, self).__init__(*kwargs)
 
   def build(self, input_shape):
-    inputShape = input_shape[0].as_list()
+    inputShape = input_shape.as_list()
     paddingSz = []
     outputSz = []
     second_ind = lambda value,ind: [value[ii][ind] for ii in range(len(value))]
@@ -270,12 +307,11 @@ class multilayerADMMsparseCodingTightFrame(Layer):
 
     # Compute padding size and size of output
     for jj in range(2):
-      ps,os,effFS = get_padding_size(inputShape[1 + jj],second_ind(self.kerSz,jj),second_ind(self.poolSz,jj),self.nol) #I need to get the effective filter size as well for the node visualization code.
+      ps,os = get_padding_size(inputShape[1 + jj],second_ind(self.kerSz,jj),second_ind(self.poolSz,jj),self.nol)
       paddingSz.append(ps)
       outputSz.append(os)
     self.paddingSz = [[0,0],floor_ceil(paddingSz[0]/2.),floor_ceil(paddingSz[1]/2.),[0,0]]
     self.outputSz = outputSz
-    self.effFilterSz = effFS
 
     # Add weights
     #self.weights = []
@@ -306,9 +342,9 @@ class multilayerADMMsparseCodingTightFrame(Layer):
     # poolz = max_pool(z)
     # dhpoolzpmu = D^H(max_pool(z) + mu)
     
-    paddedx = tf.pad(x[0],self.paddingSz,mode='CONSTANT')
+    paddedx = tf.pad(x,self.paddingSz,mode='CONSTANT')
     y = paddedx
-    batchSize = tf.shape(x[0])[0]
+    batchSize = tf.shape(x)[0]
     inputDimensions = x.get_shape()[1:4]
     binaryTensorShape = (batchSize,inputDimensions[0],inputDimensions[1],inputDimensions[2])
     binaryTensor = tf.pad(tf.fill(dims=binaryTensorShape,value=True),self.paddingSz,mode='CONSTANT',constant_values=False)
@@ -321,24 +357,23 @@ class multilayerADMMsparseCodingTightFrame(Layer):
     dh = lambda value, ind: tf.nn.conv2d(input=value,filter=self.weights[ind],strides=[1,1,1,1],padding="VALID")
     d = lambda input, ind: tf.nn.conv2d_transpose(value=input,filter=self.weights[ind],output_shape=outshape(input,self.weights[ind]),strides=[1,1,1,1],padding="VALID")
     max_pool = lambda values, ind: tf.keras.layers.MaxPool2D(pool_size=self.poolSz[ind],padding="valid")(values)
-    temp = d(temp,self.nol - 1
-    for ii in range(self.nol - 2,-1,-1):
-      temp = Stochastic_Unpool(self.kerSz[ii])(temp)
-      temp = d(temp,ii)
-    output = temp
+    #temp = d(x[1],self.nol - 1)
+    #for ii in range(self.nol - 2,-1,-1):
+    #  temp = Stochastic_Unpool(self.kerSz[ii])(temp)
+    #  temp = d(temp,ii)
     alpha = []
     z = []
     gamma = []
     mu = []
     alpha.append(1/2.*dh(y,0))
-    z.append(alpha[0])
+    z.append(tf.keras.activations.relu(alpha[0]))
     gamma.append(z[0] - alpha[0])
     mu.append(y - d(alpha[0],0))
 
     for ii in range(1,self.nol):
       poolz = max_pool(z[ii - 1],ii - 1)
       alpha.append(1/2.*dh(poolz,ii))
-      z.append(alpha[ii])
+      z.append(tf.keras.activations.relu(alpha[ii]))
       gamma.append(alpha[ii] - z[ii])
       mu.append(poolz - d(alpha[ii],ii))
 
@@ -357,7 +392,8 @@ class multilayerADMMsparseCodingTightFrame(Layer):
         amg = alpha[ii - 1] - gamma[ii - 1]
         dammu = d(alpha[ii],ii) - mu[ii]
         z[ii - 1],poolz,shrinkageFactor = Unpool_LS(self.poolSz[ii - 1])([amg,dammu])
-        
+        z[ii - 1] = tf.keras.activations.relu(z[ii - 1])
+        poolz = tf.keras.activations.relu(poolz)
         if self.lambduh[ii - 1] != 0:
           z[ii - 1] = adaptive_shrinkage_layer(self.lambduh[ii - 1]/self.rho)([z[ii - 1],shrinkageFactor])
           poolz = max_pool(z[ii - 1],ii - 1)
@@ -375,10 +411,10 @@ class multilayerADMMsparseCodingTightFrame(Layer):
       z[self.nol - 1] = shrinkage_layer(self.lambduh[self.nol - 1]/self.rho)(alpha[self.nol - 1] - gamma[self.nol - 1])
       gamma[self.nol - 1] = gamma[self.nol - 1] + z[self.nol - 1]  - alpha[self.nol - 1]
     #endfor
-    return z[self.nol - 1],y,output
+    return z[self.nol - 1],y
 
 
   def compute_output_shape(self, input_shape):
-    return ([input_shape[0][0],self.outputSz[0],self.outputSz[1],self.noc[-1]],
-[input_shape[0][0],input_shape[0][1] + sum(self.paddingSz[1]), input_shape[0][2] + sum(self.paddingSz[2]),input_shape[0][3]],
-[input_shape[1][0],self.effFilterSz[0],self.effFilterSz[1],input_shape[0][3]])
+    return ([input_shape[0],self.outputSz[0],self.outputSz[1],self.noc[-1]],
+[input_shape[0],input_shape[1] + sum(self.paddingSz[1]), input_shape[2] + sum(self.paddingSz[2]),input_shape[3]])
+
