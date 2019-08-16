@@ -153,7 +153,8 @@ class Unpool_LS(Layer):
     blockSize = blockShape[1]*blockShape[2]
     vectorizedBlocks = tf.reshape(gatheredBlocks,[-1,blockSize,1,blockShape[3]])
     vectorizedBlocks2 = get_gathered_blocks(x[1],(pooledShape[1],pooledShape[2]))
-    
+
+# MOSTLY EQUIVALENT CODE (WAS EQUIVALENT AT ONE POINT):
 #    gatheredRows = concat_splits(value=x[0],numOfSplits=pooledShape[1],splitDim=1,concatDim=3)
 #    gatheredRows2 = concat_splits(value=x[1],numOfSplits=pooledShape[1],splitDim=1,concatDim=3)
 #    gatheredBlocks = concat_splits(value=gatheredRows,numOfSplits=pooledShape[2],splitDim=2,concatDim=3)
@@ -321,7 +322,8 @@ class multilayerADMMsparseCodingTightFrame(Layer):
       weightShape = tf.constant(value=[self.kerSz[ii][0],self.kerSz[ii][1],nof,self.noc[ii]])
       self.weights.append(self.add_weight(name=weightNames,
         shape=[self.kerSz[ii][0],self.kerSz[ii][1],nof,self.noc[ii]],#weightShape,
-        initializer=tf.keras.initializers.RandomNormal(mean=0.0,stddev=np.sqrt(np.sqrt(1./(nof*self.kerSz[ii][0]**2*self.kerSz[ii][1]**2*self.noc[ii]))))
+        initializer=tf.keras.initializers.TruncatedNormal(mean=0.0,stddev=np.sqrt(1./(np.maximum(nof,self.noc[ii])*self.kerSz[ii][0]*self.kerSz[ii][1])))
+        #initializer=tf.keras.initializers.TruncatedNormal(mean=0.0,stddev=np.sqrt(np.sqrt(1./(nof*self.noc[ii]*self.kerSz[ii][0]**2*self.kerSz[ii][1]**2))))
         #initializer= tf.keras.initializers.RandomNormal(mean=0.0,stddev=np.sqrt(2/(self.kerSz[ii][0]*self.kerSz[ii][1]*self.noc[ii])))
         #initializer=tf.keras.initializers.Orthogonal(gain=1.0),
         #constraint=tf.keras.constraints.UnitNorm(axis=3)
