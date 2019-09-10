@@ -413,7 +413,7 @@ class multilayerADMMsparseCodingTightFrame(Layer):
       z[self.nol - 1] = shrinkage_layer(self.lambduh[self.nol - 1]/self.rho)(alpha[self.nol - 1] - gamma[self.nol - 1])
       gamma[self.nol - 1] = gamma[self.nol - 1] + z[self.nol - 1]  - alpha[self.nol - 1]
     #endfor
-    return z[self.nol - 1],y
+    return z[self.nol - 1],d(alpha[0],0)
 
 
   def compute_output_shape(self, input_shape):
