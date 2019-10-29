@@ -25,7 +25,7 @@ class Local_contrast_normalization(Layer):
     gaussWeights = gaussWeights/numpy.sum(gaussWeights)
     localMean = tensorflow.nn.conv2d(input=x,filter=tensorflow.convert_to_tensor(gaussWeights),strides=None,padding="SAME")
     demeanedX = x - localMean
-    normalizationFactor = tensorflow.nn.conv2d(input=tensorflow.math.square(demeanedX),filter=tensorflow.convert_to_tensor(gaussWeights),strides=None,padding="SAME")
+    normalizationFactor = tensorflow.math.sqrt(tensorflow.nn.conv2d(input=tensorflow.math.square(demeanedX),filter=tensorflow.convert_to_tensor(gaussWeights),strides=None,padding="SAME"))
     return tensorflow.where(normalizationFactor>self.thrshld,demeanedX/normalizationFactor,demeanedX)
 
   def compute_output_shape(self,input_shape):
